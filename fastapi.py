@@ -1,59 +1,52 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import pickle
 import firebase_admin
-from firebase_admin import credentials, db
+from firebase_admin import credentials, firestore
+from datetime import datetime
 
-# 🔹 Load your trained model
+# Load your model
 with open('model.pkl', 'rb') as f:
     model = pickle.load(f)
 
-# 🔹 Initialize Firebase
-cred = credentials.Certificate("serviceacckey.json")  # ✅ Your Firebase Admin SDK key
-firebase_admin.initialize_app(cred, {
-    'databaseURL': "https://sentinium-3306c-default-rtdb.firebaseio.com"
-})
+# Initialize Flask
+app = Flask(__name__)
+CORS(app)
 
-# 🔹 Initialize FastAPI app
-app = FastAPI()
+# 🔐 Firebase Setup
+cred = credentials.Certificate('serviceacckey.json')  # Replace with your file name if different
+firebase_admin.initialize_app(cred)
+db = firestore.client()  # This gives you access to Firestore DB
 
-# 🔹 Define request format
-class CommentData(BaseModel):
-    username: str
-    comment: str
+# Root route
+@app.route('/')
+def home():
+    return "✅ Sentiment Analysis API is running!"
 
-# 🔹 Home route to check server status
-@app.get("/")
-def read_root():
-    return {"message": "✅ FastAPI ABSA Model is Running!"}
-
-# 🔹 Prediction route
-@app.post("/predict")
-def predict(data: CommentData):
+# Prediction + Firebase storing route
+@app.route('/predict', methods=['POST'])
+def predict():
     try:
-        comment = data.comment
-        username = data.username
+        data = request.get_json()
+        comment = data.get("comment")
 
-        # 🔮 Run your model's prediction
-        predictions = model.predict(comment)
+        if not comment:
+            return jsonify({'error': 'Missing "comment" field in request'}), 400
 
-        print("\n🧠 Received Comment:", comment)
-        print("✅ Model Output:")
+        # Run ABSA model
+        predictions = model.predict(comment) # Limiting to top 2 predictions
         for item in predictions:
             print(f"  → Aspect: {item['span']}, Polarity: {item['polarity']}")
-
-        # 🔁 Save predictions to Firebase
-        ref = db.reference(f"/predictions/{username}")
-        ref.set({
-            "comment": comment,
-            "aspects": predictions
-        })
-
-        return {
-            "username": username,
-            "comment": comment,
-            "aspects": predictions
+        result = {
+            'comment': comment,
+            'aspects': predictions
         }
-    except Exception as e:
-        return {"error": str(e)}
+        db.collection('comments').add(result)  # 'comments' is your collection name
 
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
