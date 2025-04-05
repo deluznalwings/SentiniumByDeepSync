@@ -9,7 +9,7 @@ with open('model.pkl', 'rb') as f:
     model = pickle.load(f)
 
 # 🔹 Firebase setup
-cred = credentials.Certificate("localservicekey.json")  # 🔸 Use your actual service account key filename
+cred = credentials.Certificate(r"D:\Sentinium\localservicekey.json")  # 🔸 Use your actual service account key filename
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
