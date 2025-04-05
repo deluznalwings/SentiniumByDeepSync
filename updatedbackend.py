@@ -23,16 +23,15 @@ def remove_html_tags(text):
 
 def remove_urls(text):
     return re.sub(r"http\S+|www\S+|bit.ly\S+", "", text)
-
-def handle_emoji_and_emoticons(text):
-    emot_obj = emot.core.emot()
-    result = emot_obj.emoticons(text)
-    for emoticon, meaning in zip(result['value'], result['mean']):
-        text = text.replace(emoticon, meaning)
-    emojis = demoji.findall(text)
-    for emoji, desc in emojis.items():
-        text = text.replace(emoji, f", {desc.split(':')[0]} ")
-    return text
+#def handle_emoji_and_emoticons(text):
+    #emot_obj = emot.core.emot()
+    #result = emot_obj.emoticons(text)
+    #for emoticon, meaning in zip(result['value'], result['mean']):
+        #text = text.replace(emoticon, meaning)
+    #emojis = demoji.findall(text)
+    #for emoji, desc in emojis.items():
+        #text = text.replace(emoji, f", {desc.split(':')[0]} ")
+    #return text
 
 def remove_excessive_punctuation(text):
     return re.sub(r'([!?.,]){2,}', r'\1', text)
@@ -44,7 +43,7 @@ def preprocess_text(text):
     text = to_lowercase(text)
     text = remove_html_tags(text)
     text = remove_urls(text)
-    text = handle_emoji_and_emoticons(text)
+    #text = handle_emoji_and_emoticons(text)
     text = remove_excessive_punctuation(text)
     text = correct_spelling(text)
     return text
