@@ -15,7 +15,7 @@ def predict():
         comment = data.get("comment")
         if not comment:
             return jsonify({'error': 'Missing "comment" field in request'}), 400
-        predictions = model.predict([comment]) 
+        predictions = model.predict(comment) 
         print("\n🧠 Received Comment:", comment)
         print("✅ Model Output:")
         for item in predictions:
