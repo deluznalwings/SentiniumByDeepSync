@@ -15,4 +15,4 @@ iface = gr.Interface(
     title="ABSA Model",
     description="Aspect-Based Sentiment Analysis"
 )
-iface.launch()
+iface.launch(share=True)
