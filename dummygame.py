@@ -1,7 +1,7 @@
+
 import gradio as gr
 from PIL import Image, ImageDraw
 import random
-import time
 
 # Load your image
 imageurl = r"C:\Users\hp\Downloads\9a090454ab8f5b24b7adf37d66be44d5.jpg"
@@ -20,219 +20,175 @@ annotations = {
     "Gun": (194, 221, 117, 227)
 }
 
-def start_game():
-    """Initialize and start the game"""
-    objects_to_find = random.sample(list(annotations.keys()), 3)
-    current_index = 0
-    found_objects = []
+def start_new_game():
+    """Start a completely new game"""
+    objects_list = random.sample(list(annotations.keys()), 3)
     
-    # Show first object to find
-    current_obj = objects_to_find[current_index]
-    label = f"**Find and click on: {current_obj}**"
-    feedback = f"Game started! Looking for object 1/3: {current_obj}"
-    
-    game_state = {
-        'objects_to_find': objects_to_find,
-        'current_index': current_index,
-        'found_objects': found_objects,
+    initial_state = {
+        'objects_to_find': objects_list,
+        'current_index': 0,
+        'found_objects': [],
+        'game_active': True,
         'waiting_for_click': True,
-        'game_active': True
+        'show_highlighted': False
     }
     
+    current_obj = objects_list[0]
+    label_text = f"🎯 **FIND: {current_obj}** (Object 1 of 3)"
+    feedback_text = f"Game Started! Click on the {current_obj} in the image."
+    
     return (
-        label,                           # label
-        dummyimage,                     # img  
-        feedback,                       # feedback
-        gr.update(visible=False),       # start_button (hide)
-        gr.update(visible=True),        # next_button (show)
-        game_state                      # game_state
+        label_text,
+        dummyimage,
+        feedback_text,
+        initial_state
     )
 
-def check_click(evt: gr.SelectData, game_state):
-    """Handle image clicks"""
-    if not game_state or not game_state.get('game_active', False):
+def handle_image_click(evt: gr.SelectData, current_state):
+    """Handle all image click events"""
+    
+    # Check if game is active
+    if not current_state or not current_state.get('game_active', False):
+        empty_state = {'game_active': False, 'waiting_for_click': False}
         return (
-            "Please start the game first!",
+            "❌ No active game. Click 'Start Game' first!",
             dummyimage,
-            "Click 'Start Game' to begin",
-            gr.update(visible=True),     # start_button
-            gr.update(visible=False),    # next_button  
-            game_state
+            "Please start a new game.",
+            empty_state
         )
     
-    if not game_state.get('waiting_for_click', False):
+    # Check if we're waiting for a click
+    if not current_state.get('waiting_for_click', False):
         return (
-            game_state.get('current_label', ''),
+            current_state.get('last_label', 'Wait...'),
             dummyimage,
-            "Please wait or click 'Next Object'...",
-            gr.update(visible=False),
-            gr.update(visible=True),
-            game_state
+            "Please wait, processing...",
+            current_state
         )
     
     # Get click coordinates
-    cx, cy = evt.index
+    click_x, click_y = evt.index
     
-    # Get current object to find
-    objects_to_find = game_state['objects_to_find']
-    current_index = game_state['current_index']
-    curr_obj = objects_to_find[current_index]
-    x, y, w, h = annotations[curr_obj]
+    # Get current object details
+    objects_to_find = current_state['objects_to_find']
+    current_index = current_state['current_index']
+    current_obj = objects_to_find[current_index]
     
-    # Check if click is within the object bounds
-    if x <= cx <= x + w and y <= cy <= y + h:
-        # Correct click!
-        game_state['found_objects'].append(curr_obj)
-        game_state['waiting_for_click'] = False
+    # Get object boundaries
+    obj_x, obj_y, obj_w, obj_h = annotations[current_obj]
+    
+    # Check if click is within bounds
+    if obj_x <= click_x <= obj_x + obj_w and obj_y <= click_y <= obj_y + obj_h:
+        # CORRECT CLICK!
+        
+        # Update state
+        current_state['found_objects'].append(current_obj)
+        current_state['current_index'] += 1
+        current_state['waiting_for_click'] = True  # Keep waiting for next
         
         # Create highlighted image
         highlighted_img = dummyimage.copy()
         draw = ImageDraw.Draw(highlighted_img)
-        draw.rectangle([x, y, x + w, y + h], outline="green", width=6)
-        
-        # Move to next object
-        game_state['current_index'] += 1
+        draw.rectangle([obj_x, obj_y, obj_x + obj_w, obj_y + obj_h], outline="green", width=8)
         
         # Check if game is complete
-        if game_state['current_index'] >= len(objects_to_find):
-            game_state['game_active'] = False
+        if current_state['current_index'] >= len(objects_to_find):
+            current_state['game_active'] = False
+            current_state['waiting_for_click'] = False
+            
             return (
-                "🎉 **CONGRATULATIONS! You found all objects!** 🎉",
+                "🎉 **GAME WON! ALL OBJECTS FOUND!** 🎉",
                 highlighted_img,
-                f"Game Won! Found all objects: {', '.join(game_state['found_objects'])}",
-                gr.update(visible=True, value="Start New Game"),   # start_button
-                gr.update(visible=False),                          # next_button
-                game_state
+                f"Congratulations! You found all objects: {', '.join(current_state['found_objects'])}",
+                current_state
             )
         
-        # Prepare next object info
-        next_obj = objects_to_find[game_state['current_index']]
-        game_state['next_object'] = next_obj
+        # Move to next object
+        next_obj = objects_to_find[current_state['current_index']]
+        object_num = current_state['current_index'] + 1
         
-        feedback = f"✅ Correct! Found {curr_obj}. Click 'Next Object' to continue ({game_state['current_index']}/3 complete)"
+        label_text = f"🎯 **FIND: {next_obj}** (Object {object_num} of 3)"
+        feedback_text = f"✅ Found {current_obj}! Now find the {next_obj}."
+        current_state['last_label'] = label_text
         
         return (
-            f"✅ **Found: {curr_obj}!** Click 'Next Object' to continue...",
-            highlighted_img,
-            feedback,
-            gr.update(visible=False),    # start_button
-            gr.update(visible=True),     # next_button
-            game_state
+            label_text,
+            dummyimage,  # Reset to original image for next object
+            feedback_text,
+            current_state
         )
     
     else:
-        # Wrong click
+        # WRONG CLICK
+        object_num = current_index + 1
+        label_text = f"🎯 **FIND: {current_obj}** (Object {object_num} of 3)"
+        feedback_text = f"❌ Wrong spot! Try clicking directly on the {current_obj}."
+        
         return (
-            f"❌ **Wrong location!** Try clicking on the **{curr_obj}**",
+            label_text,
             dummyimage,
-            f"Try again! Looking for: {curr_obj}",
-            gr.update(visible=False),    # start_button
-            gr.update(visible=True),     # next_button
-            game_state
+            feedback_text,
+            current_state
         )
 
-def show_next_object(game_state):
-    """Show the next object to find"""
-    if not game_state or not game_state.get('game_active', False):
-        return start_game()
+# Create the Gradio interface
+with gr.Blocks(title="Object Finding Game") as demo:
     
-    current_index = game_state['current_index']
-    objects_to_find = game_state['objects_to_find']
-    
-    if current_index >= len(objects_to_find):
-        return (
-            "Game completed!",
-            dummyimage,
-            "All objects found!",
-            gr.update(visible=True, value="Start New Game"),
-            gr.update(visible=False),
-            game_state
-        )
-    
-    current_obj = objects_to_find[current_index]
-    game_state['waiting_for_click'] = True
-    
-    label = f"**Find and click on: {current_obj}**"
-    feedback = f"Looking for object {current_index + 1}/3: {current_obj}"
-    
-    return (
-        label,
-        dummyimage,  # Reset to original image
-        feedback,
-        gr.update(visible=False),    # start_button
-        gr.update(visible=True),     # next_button
-        game_state
-    )
-
-# Create Gradio interface
-with gr.Blocks(title="Object Finding Game", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🎯 Object Finding Game")
-    gr.Markdown("**Instructions:** Click on the objects as they are requested. Find all 3 objects to win!")
+    gr.Markdown("**Goal:** Find and click on 3 different objects in the image!")
     
-    # Game state storage
+    # State variable
     game_state = gr.State({})
     
     with gr.Row():
-        with gr.Column(scale=3):
-            label = gr.Markdown("**Click 'Start Game' to begin!**", elem_id="game-label")
-            img = gr.Image(
-                value=dummyimage, 
-                interactive=True, 
-                height=600,
-                elem_id="game-image"
+        with gr.Column(scale=2):
+            # Main game label
+            game_label = gr.Markdown("**Click 'Start Game' to begin!**", elem_id="main-label")
+            
+            # The clickable image
+            game_image = gr.Image(
+                value=dummyimage,
+                interactive=True,
+                height=500,
+                show_label=False
             )
-        
+            
         with gr.Column(scale=1):
-            feedback = gr.Textbox(
-                label='Game Status', 
-                interactive=False, 
-                value="Ready to start!",
-                lines=3
+            # Feedback area
+            feedback_box = gr.Textbox(
+                label="Status",
+                value="Ready to play!",
+                interactive=False,
+                lines=4
             )
             
-            start_button = gr.Button(
-                'Start Game', 
-                variant="primary", 
-                size="lg"
-            )
-            
-            next_button = gr.Button(
-                'Next Object', 
-                variant="secondary", 
-                visible=False,
-                size="lg"
-            )
+            # Start game button
+            start_btn = gr.Button("🎮 Start Game", variant="primary", size="lg")
             
             gr.Markdown("---")
-            gr.Markdown("### 📋 How to Play:")
-            gr.Markdown("1. Click **Start Game**")
-            gr.Markdown("2. Click on the highlighted object")
-            gr.Markdown("3. Click **Next Object** to continue")
-            gr.Markdown("4. Find all 3 objects to win!")
+            gr.Markdown("### Objects to Find:")
+            gr.Markdown("• ⌚ **Watch**")
+            gr.Markdown("• 👓 **Glasses**") 
+            gr.Markdown("• 🔫 **Gun**")
             
-            gr.Markdown("### 🎯 Objects to Find:")
-            gr.Markdown("• Watch ⌚")
-            gr.Markdown("• Glasses 👓") 
-            gr.Markdown("• Gun 🔫")
+            gr.Markdown("### Instructions:")
+            gr.Markdown("1. Click **Start Game**")
+            gr.Markdown("2. Look for the requested object")
+            gr.Markdown("3. Click directly on it")
+            gr.Markdown("4. Continue until all 3 are found!")
     
-    # Event handlers
-    start_button.click(
-        fn=start_game,
+    # Event bindings
+    start_btn.click(
+        fn=start_new_game,
         inputs=[],
-        outputs=[label, img, feedback, start_button, next_button, game_state]
+        outputs=[game_label, game_image, feedback_box, game_state]
     )
     
-    img.select(
-        fn=check_click,
+    game_image.select(
+        fn=handle_image_click,
         inputs=[game_state],
-        outputs=[label, img, feedback, start_button, next_button, game_state]
-    )
-    
-    next_button.click(
-        fn=show_next_object,
-        inputs=[game_state],
-        outputs=[label, img, feedback, start_button, next_button, game_state]
+        outputs=[game_label, game_image, feedback_box, game_state]
     )
 
 if __name__ == "__main__":
-    demo.launch(share=False, server_name="127.0.0.1")
+    demo.launch()
