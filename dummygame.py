@@ -1,4 +1,3 @@
-
 import gradio as gr
 from PIL import Image, ImageDraw
 import random
@@ -44,8 +43,25 @@ def start_new_game():
         initial_state
     )
 
+def create_success_highlight(base_image, obj_bounds):
+    """Create green highlight for correctly found objects"""
+    highlighted_img = base_image.copy()
+    draw = ImageDraw.Draw(highlighted_img)
+    
+    obj_x, obj_y, obj_w, obj_h = obj_bounds
+    
+    # Green rectangle around the found object
+    draw.rectangle([obj_x, obj_y, obj_x + obj_w, obj_y + obj_h], 
+                  outline="lime", width=8)
+    
+    # Inner green border for emphasis
+    draw.rectangle([obj_x + 2, obj_y + 2, obj_x + obj_w - 2, obj_y + obj_h - 2], 
+                  outline="green", width=4)
+    
+    return highlighted_img
+
 def handle_image_click(evt: gr.SelectData, current_state):
-    """Handle all image click events"""
+    """Handle all image click events with visual effects"""
     
     # Check if game is active
     if not current_state or not current_state.get('game_active', False):
@@ -76,20 +92,19 @@ def handle_image_click(evt: gr.SelectData, current_state):
     
     # Get object boundaries
     obj_x, obj_y, obj_w, obj_h = annotations[current_obj]
+    obj_bounds = (obj_x, obj_y, obj_w, obj_h)
     
     # Check if click is within bounds
     if obj_x <= click_x <= obj_x + obj_w and obj_y <= click_y <= obj_y + obj_h:
-        # CORRECT CLICK!
+        # CORRECT CLICK! ✅
         
         # Update state
         current_state['found_objects'].append(current_obj)
         current_state['current_index'] += 1
         current_state['waiting_for_click'] = True  # Keep waiting for next
         
-        # Create highlighted image
-        highlighted_img = dummyimage.copy()
-        draw = ImageDraw.Draw(highlighted_img)
-        draw.rectangle([obj_x, obj_y, obj_x + obj_w, obj_y + obj_h], outline="green", width=8)
+        # Create SUCCESS visual effect (green highlight only)
+        success_img = create_success_highlight(dummyimage, obj_bounds)
         
         # Check if game is complete
         if current_state['current_index'] >= len(objects_to_find):
@@ -98,8 +113,8 @@ def handle_image_click(evt: gr.SelectData, current_state):
             
             return (
                 "🎉 **GAME WON! ALL OBJECTS FOUND!** 🎉",
-                highlighted_img,
-                f"Congratulations! You found all objects: {', '.join(current_state['found_objects'])}",
+                success_img,
+                f"🏆 VICTORY! Found all objects: {', '.join(current_state['found_objects'])}",
                 current_state
             )
         
@@ -108,25 +123,25 @@ def handle_image_click(evt: gr.SelectData, current_state):
         object_num = current_state['current_index'] + 1
         
         label_text = f"🎯 **FIND: {next_obj}** (Object {object_num} of 3)"
-        feedback_text = f"✅ Found {current_obj}! Now find the {next_obj}."
+        feedback_text = f"✅ CORRECT! Found {current_obj}! Now find the {next_obj}."
         current_state['last_label'] = label_text
         
         return (
             label_text,
-            dummyimage,  # Reset to original image for next object
+            dummyimage,  # Clean original image for next object
             feedback_text,
             current_state
         )
     
     else:
-        # WRONG CLICK
+        # WRONG CLICK - No visual effects, just feedback
         object_num = current_index + 1
         label_text = f"🎯 **FIND: {current_obj}** (Object {object_num} of 3)"
-        feedback_text = f"❌ Wrong spot! Try clicking directly on the {current_obj}."
+        feedback_text = f"❌ MISS! Try clicking directly on the {current_obj}."
         
         return (
             label_text,
-            dummyimage,
+            dummyimage,  # Keep clean image
             feedback_text,
             current_state
         )
