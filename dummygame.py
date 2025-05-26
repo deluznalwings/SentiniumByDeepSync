@@ -1,6 +1,7 @@
 import gradio as gr
 from PIL import Image, ImageDraw
 import random
+import time
 
 # Load your image
 imageurl = r"C:\Users\hp\Downloads\9a090454ab8f5b24b7adf37d66be44d5.jpg"
@@ -62,20 +63,29 @@ def create_success_highlight(base_image, found_objects_list):
     
     return highlighted_img
 
-def handle_image_click(evt: gr.SelectData, current_state):
-    """Handle all image click events with visual effects"""
+import time
+
+def create_single_highlight(base_image, object_name):
+    """Highlight only the recently found object"""
+    highlighted_img = base_image.copy()
+    draw = ImageDraw.Draw(highlighted_img)
     
-    # Check if game is active
+    obj_x, obj_y, obj_w, obj_h = annotations[object_name]
+    draw.rectangle([obj_x, obj_y, obj_x + obj_w, obj_y + obj_h], 
+                   outline="lime", width=6)
+    draw.rectangle([obj_x + 2, obj_y + 2, obj_x + obj_w - 2, obj_y + obj_h - 2], 
+                   outline="green", width=3)
+    return highlighted_img
+
+def handle_image_click(evt: gr.SelectData, current_state):
     if not current_state or not current_state.get('game_active', False):
-        empty_state = {'game_active': False, 'waiting_for_click': False}
         return (
             "❌ No active game. Click 'Start Game' first!",
             dummyimage,
             "Please start a new game.",
-            empty_state
+            {'game_active': False}
         )
     
-    # Check if we're waiting for a click
     if not current_state.get('waiting_for_click', False):
         return (
             current_state.get('last_label', 'Wait...'),
@@ -84,77 +94,64 @@ def handle_image_click(evt: gr.SelectData, current_state):
             current_state
         )
     
-    # Get click coordinates
     click_x, click_y = evt.index
-    
-    # Get current object details
     objects_to_find = current_state['objects_to_find']
     current_index = current_state['current_index']
     current_obj = objects_to_find[current_index]
     
-    # Get object boundaries
     obj_x, obj_y, obj_w, obj_h = annotations[current_obj]
-    obj_bounds = (obj_x, obj_y, obj_w, obj_h)
     
-    # Check if click is within bounds
     if obj_x <= click_x <= obj_x + obj_w and obj_y <= click_y <= obj_y + obj_h:
-        # CORRECT CLICK! ✅
-        
-        # Update state
+        # Correct!
         current_state['found_objects'].append(current_obj)
         current_state['current_index'] += 1
-        current_state['waiting_for_click'] = True
+        current_state['waiting_for_click'] = False  # Pause for effect
         
-        # Create SUCCESS visual effect (highlight all found objects)
-        success_img = create_success_highlight(dummyimage, current_state['found_objects'])
+        # Highlight only the latest object
+        temp_highlight_img = create_single_highlight(dummyimage, current_obj)
         
-        # Check if game is complete
+        # Save transition info
+        current_state['last_highlight'] = temp_highlight_img
+        
+        # Game complete?
         if current_state['current_index'] >= len(objects_to_find):
             current_state['game_active'] = False
             current_state['waiting_for_click'] = False
-            
             return (
                 "🎉 **GAME WON! ALL OBJECTS FOUND!** 🎉",
-                success_img,
-                f"🏆 VICTORY! Found all objects: {', '.join(current_state['found_objects'])}",
+                temp_highlight_img,
+                f"🏆 Victory! Found all: {', '.join(current_state['found_objects'])}",
                 current_state
             )
         
-        # Move to next object
+        # Show highlight for a moment, then return to original image
         next_obj = objects_to_find[current_state['current_index']]
         object_num = current_state['current_index'] + 1
-        
         label_text = f"🎯 **FIND: {next_obj}** (Object {object_num} of 3)"
-        feedback_text = f"✅ CORRECT! Found {current_obj}! Now find the {next_obj}."
+        feedback_text = f"✅ Found {current_obj}! Now find the {next_obj}."
+
+        # Update state
+        current_state['waiting_for_click'] = True
         current_state['last_label'] = label_text
         
-        # Move to next object immediately with highlight visible
-        next_obj = objects_to_find[current_state['current_index']]
-        object_num = current_state['current_index'] + 1
-        
-        label_text = f"🎯 **FIND: {next_obj}** (Object {object_num} of 3)"
-        feedback_text = f"✅ CORRECT! Found {current_obj}! Now find the {next_obj}."
-        current_state['last_label'] = label_text
-        
+        # Return highlight first
         return (
             label_text,
-            success_img,  # Keep the highlighted image showing
+            temp_highlight_img,
             feedback_text,
             current_state
         )
     
     else:
-        # WRONG CLICK - No visual effects, just feedback
-        object_num = current_index + 1
-        label_text = f"🎯 **FIND: {current_obj}** (Object {object_num} of 3)"
+        label_text = f"🎯 **FIND: {current_obj}** (Object {current_index+1} of 3)"
         feedback_text = f"❌ MISS! Try clicking directly on the {current_obj}."
-        
         return (
             label_text,
-            dummyimage,  # Keep clean image
+            dummyimage,
             feedback_text,
             current_state
         )
+
 
 # Create the Gradio interface
 with gr.Blocks(title="Object Finding Game") as demo:
