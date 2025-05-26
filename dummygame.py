@@ -43,20 +43,22 @@ def start_new_game():
         initial_state
     )
 
-def create_success_highlight(base_image, obj_bounds):
-    """Create green highlight for correctly found objects"""
+def create_success_highlight(base_image, found_objects_list):
+    """Create green highlight for all correctly found objects"""
     highlighted_img = base_image.copy()
     draw = ImageDraw.Draw(highlighted_img)
     
-    obj_x, obj_y, obj_w, obj_h = obj_bounds
-    
-    # Green rectangle around the found object
-    draw.rectangle([obj_x, obj_y, obj_x + obj_w, obj_y + obj_h], 
-                  outline="lime", width=8)
-    
-    # Inner green border for emphasis
-    draw.rectangle([obj_x + 2, obj_y + 2, obj_x + obj_w - 2, obj_y + obj_h - 2], 
-                  outline="green", width=4)
+    # Highlight all found objects
+    for obj_name in found_objects_list:
+        obj_x, obj_y, obj_w, obj_h = annotations[obj_name]
+        
+        # Green rectangle around each found object
+        draw.rectangle([obj_x, obj_y, obj_x + obj_w, obj_y + obj_h], 
+                      outline="lime", width=8)
+        
+        # Inner green border for emphasis
+        draw.rectangle([obj_x + 2, obj_y + 2, obj_x + obj_w - 2, obj_y + obj_h - 2], 
+                      outline="green", width=4)
     
     return highlighted_img
 
@@ -98,14 +100,13 @@ def handle_image_click(evt: gr.SelectData, current_state):
     if obj_x <= click_x <= obj_x + obj_w and obj_y <= click_y <= obj_y + obj_h:
         # CORRECT CLICK! ✅
         
-        # Update state - but set waiting to false temporarily to show highlight
+        # Update state
         current_state['found_objects'].append(current_obj)
         current_state['current_index'] += 1
-        current_state['waiting_for_click'] = False  # Temporarily disable clicking
-        current_state['show_success'] = True  # Flag to show we're in success state
+        current_state['waiting_for_click'] = True
         
-        # Create SUCCESS visual effect (green highlight only)
-        success_img = create_success_highlight(dummyimage, obj_bounds)
+        # Create SUCCESS visual effect (highlight all found objects)
+        success_img = create_success_highlight(dummyimage, current_state['found_objects'])
         
         # Check if game is complete
         if current_state['current_index'] >= len(objects_to_find):
@@ -127,35 +128,22 @@ def handle_image_click(evt: gr.SelectData, current_state):
         feedback_text = f"✅ CORRECT! Found {current_obj}! Now find the {next_obj}."
         current_state['last_label'] = label_text
         
-        # Show highlight for 1 second, then proceed to next object
+        # Move to next object immediately with highlight visible
+        next_obj = objects_to_find[current_state['current_index']]
+        object_num = current_state['current_index'] + 1
+        
+        label_text = f"🎯 **FIND: {next_obj}** (Object {object_num} of 3)"
+        feedback_text = f"✅ CORRECT! Found {current_obj}! Now find the {next_obj}."
+        current_state['last_label'] = label_text
+        
         return (
-            f"✅ **FOUND: {current_obj}!** Click anywhere to continue to next object...",
-            success_img,  # Show highlighted image
+            label_text,
+            success_img,  # Keep the highlighted image showing
             feedback_text,
             current_state
         )
     
     else:
-        # Check if we're in success state (showing highlight) - any click continues
-        if current_state.get('show_success', False):
-            # Clear success state and show next object
-            current_state['show_success'] = False
-            current_state['waiting_for_click'] = True
-            
-            next_obj = objects_to_find[current_state['current_index'] - 1]  # We already incremented
-            if current_state['current_index'] < len(objects_to_find):
-                next_obj = objects_to_find[current_state['current_index']]
-                object_num = current_state['current_index'] + 1
-                label_text = f"🎯 **FIND: {next_obj}** (Object {object_num} of 3)"
-                feedback_text = f"Now find the {next_obj}."
-                
-                return (
-                    label_text,
-                    dummyimage,  # Clean original image for next object
-                    feedback_text,
-                    current_state
-                )
-        
         # WRONG CLICK - No visual effects, just feedback
         object_num = current_index + 1
         label_text = f"🎯 **FIND: {current_obj}** (Object {object_num} of 3)"
