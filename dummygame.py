@@ -27,32 +27,33 @@ def startgame():
   state["highlightimg"] = dummyimage.copy()
   state["waitingforclick"] = False
   return shownextlabel()
-def checkclick(evt:gr.SelectData):
-  if not state["waitingforclick"]:
-    return "Wait for the next object label...", state["highlightimg"], gr.update(visible=True)
-  cx, cy = evt.index
-  curr_obj = objectstofind[state["currentindex"]]
-  x, y, w, h = annotations[curr_obj]
-  if x <= cx <= x + w and y <= cy <= y + h:
-    # Correct click!
-    state["foundindexes"].add(state["currentindex"])
-    state["waitingforclick"] = False
+def checkclick(evt: gr.SelectData):
+    if not state["waitingforclick"]:
+        return "Wait for the next object label...", state["highlightimg"], gr.update(visible=True)
+    cx, cy = evt.index
+    curr_obj = objectstofind[state["currentindex"]]
+    x, y, w, h = annotations[curr_obj]
+    if x <= cx <= x + w and y <= cy <= y + h:
+        # Correct click!
+        state["foundindexes"].add(state["currentindex"])
+        state["waitingforclick"] = False
 
-    # Draw green rectangle on highlight_img
-    img = state["highlightimg"].copy()
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([x, y, x + w, y + h], outline="green", width=4)
-    state["highlightimg"] = img
+        # Draw green rectangle on highlight_img
+        img = state["highlightimg"].copy()
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([x, y, x + w, y + h], outline="green", width=4)
+        state["highlightimg"] = img
 
-    # Move to next object after short delay (simulate label fade)
-    state["currentindex"] += 1
-    if state["currentindex"] >= len(objectstofind):
-      return "🎉 You found all objects! You won!", img, gr.update(visible=False)
+        # Move to next object after short delay (simulate label fade)
+        state["currentindex"] += 1
+        if state["currentindex"] >= len(objectstofind):
+            return "🎉 You found all objects! You won!", img, ""
 
-    return f"✅ Correct! Next object coming up...", img, gr.update(visible=True)
-  else:
-    # Wrong click - try again
-    return "❌ Wrong! Try again.", state["highlightimg"], gr.update(visible=True)
+        # Show next label
+        return "✅ Correct! Next object coming up...", img, f"Click on the **{objectstofind[state['currentindex']].replace('_', ' ')}**"
+    else:
+        # Wrong click - try again
+        return "❌ Wrong! Try again.", state["highlightimg"], f"Click on the **{objectstofind[state['currentindex']].replace('_', ' ')}**"
 with gr.Blocks() as demo:
   label=gr.Markdown("")
   img=gr.Image(value=dummyimage, interactive=True)
